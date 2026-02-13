@@ -325,5 +325,121 @@
         </footer>
 
     </div>
+    <div class="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+    
+    <div id="chat-window" class="hidden w-80 h-96 bg-black border border-white/20 rounded-2xl flex flex-col shadow-2xl overflow-hidden">
+        <div class="bg-zinc-900 p-4 border-b border-white/10 flex justify-between items-center">
+            <h3 class="text-white font-bold text-sm flex items-center gap-2">
+                <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                AI Assistant
+            </h3>
+            <button onclick="toggleChat()" class="text-gray-400 hover:text-white">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-4 bg-black text-sm scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+            <div class="flex items-start gap-2.5">
+                <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white shrink-0">AI</div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex flex-col w-full max-w-[320px] leading-1.5 p-3 border-gray-200 bg-zinc-800 rounded-e-xl rounded-es-xl">
+                        <p class="text-sm font-normal text-white">Hi! I'm Mark's AI assistant. Ask me anything about his projects or skills.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <form id="chat-form" class="p-3 bg-zinc-900 border-t border-white/10 flex gap-2">
+            @csrf
+            <input type="text" id="chat-input" 
+                   class="w-full bg-black text-white text-sm rounded-lg border border-white/20 px-3 py-2 focus:outline-none focus:border-blue-500 placeholder-gray-500"
+                   placeholder="Type a message..." required>
+            <button type="submit" class="bg-white text-black hover:bg-gray-200 rounded-lg p-2 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+            </button>
+        </form>
+    </div>
+
+    <button onclick="toggleChat()" 
+            class="bg-white hover:bg-gray-200 text-black p-4 rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 group">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+    </button>
+</div>
+
+<script>
+    const chatWindow = document.getElementById('chat-window');
+    const chatMessages = document.getElementById('chat-messages');
+    const chatForm = document.getElementById('chat-form');
+    const chatInput = document.getElementById('chat-input');
+
+    function toggleChat() {
+        chatWindow.classList.toggle('hidden');
+        if (!chatWindow.classList.contains('hidden')) {
+            setTimeout(() => chatInput.focus(), 100);
+        }
+    }
+
+    function appendMessage(role, text) {
+        const isUser = role === 'user';
+        const alignClass = isUser ? 'items-end' : 'items-start';
+        const bgClass = isUser ? 'bg-white text-black' : 'bg-zinc-800 text-white';
+        const roundedClass = isUser ? 'rounded-s-xl rounded-ee-xl' : 'rounded-e-xl rounded-es-xl';
+        const icon = isUser ? '' : '<div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white shrink-0">AI</div>';
+
+        const html = `
+            <div class="flex ${alignClass} gap-2.5">
+                ${!isUser ? icon : ''}
+                <div class="flex flex-col gap-1 max-w-[80%]">
+                    <div class="flex flex-col w-full leading-1.5 p-3 ${bgClass} ${roundedClass}">
+                        <p class="text-sm font-normal">${text}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        chatMessages.insertAdjacentHTML('beforeend', html);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const message = chatInput.value.trim();
+        if (!message) return;
+
+        // 1. Show User Message
+        appendMessage('user', message);
+        chatInput.value = '';
+        chatInput.disabled = true;
+
+        try {
+            // 2. Send to Backend
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json', // <-- Added this to ensure Laravel sends JSON errors
+                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                },
+                body: JSON.stringify({ message })
+            });
+
+            const data = await response.json();
+
+            // 3. Show AI Response or Server Error
+            if (response.ok) {
+                appendMessage('ai', data.reply);
+            } else {
+                // If Laravel sends a 500 error, this will now display the exact error message!
+                appendMessage('ai', `Server Error: ${data.reply || data.message || 'Check console'}`);
+            }
+        } catch (error) {
+            console.error("Fetch error:", error);
+            appendMessage('ai', 'Network error. Are you connected to the internet?');
+        } finally {
+            chatInput.disabled = false;
+            chatInput.focus();
+        }
+    });
+</script>
 </body>
 </html>
